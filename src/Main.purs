@@ -3,25 +3,62 @@ module Main where
 import Prelude
 import Graphics.Canvas as Canvas
 import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (error, CONSOLE, log)
+import Control.Monad.Eff.Console (error, CONSOLE)
+import Control.Monad.Eff.Ref (modifyRef, readRef, REF, newRef)
 import Data.Maybe (Maybe(..))
 import Graphics.Canvas (CanvasImageSource)
 
+type GameState =
+  { player1 :: PlayerPosition
+  , player2 :: PlayerPosition
+  , sprite1 :: Canvas.CanvasImageSource
+  , sprite2 :: Canvas.CanvasImageSource
+  }
+
 main :: forall e. Eff ( console :: CONSOLE
                       , canvas :: Canvas.CANVAS
+                      , ref :: REF
                       | e) Unit
 main = do
   drawBackground
+  attachKeyListeners
   mcvas <- Canvas.getCanvasElementById "canvas_game"
   case mcvas of
     Nothing -> error "Whoops"
     Just cvas -> do
       ctx <- Canvas.getContext2D cvas
-      Canvas.withImage "assets/Ichigo_Idle.png" \i ->
-        drawPlayer ctx i startP1
-      Canvas.withImage "assets/villain.png" \i ->
-        drawPlayer ctx i startP2
-      log "Hello sailor!"
+      gameLoop ctx
+
+gameLoop
+  :: forall e
+  . Canvas.Context2D
+  -> Eff ( ref :: REF, canvas :: Canvas.CANVAS | e) Unit
+gameLoop ctx = do
+  Canvas.withImage "assets/Ichigo_Idle.png" \i1 -> do
+    Canvas.withImage "assets/villain.png" \i2 -> do
+      gameState <- newRef { player1: startP1
+                          , player2: startP2
+                          , sprite1: i1
+                          , sprite2: i2
+                          }
+      requestAnimationFrame (step ctx gameState)
+
+step ctx ref delta = do
+  cleanCanvas ctx
+  gs <- readRef ref
+  {left, up, right} <- getKeys
+  when left
+    (modifyRef ref (\gs -> gs {player1 = moveLeft gs.player1}))
+  when right
+    (modifyRef ref (\gs -> gs {player1 = moveRight gs.player1}))
+  drawPlayer ctx gs.sprite1 gs.player1
+  drawPlayer ctx gs.sprite2 gs.player2
+  requestAnimationFrame (step ctx ref)
+
+cleanCanvas
+  :: forall e. Canvas.Context2D -> Eff ( canvas :: Canvas.CANVAS | e) Unit
+cleanCanvas ctx =
+  Canvas.clearRect ctx {x: 0.0, y: 0.0, w: 1280.0, h: 720.0} $> unit
 
 startP1 :: PlayerPosition
 startP1 = PlayerPosition 100.0 470.0 FacingRight
@@ -31,6 +68,12 @@ startP2 = PlayerPosition 1170.0 470.0 FacingLeft
 
 data Direction = FacingLeft | FacingRight
 data PlayerPosition = PlayerPosition Number Number Direction
+
+moveLeft :: PlayerPosition -> PlayerPosition
+moveLeft (PlayerPosition x y d) = PlayerPosition (x - 2.0) y FacingLeft
+
+moveRight :: PlayerPosition -> PlayerPosition
+moveRight (PlayerPosition x y d) = PlayerPosition (x + 2.0) y FacingRight
 
 drawPlayer
   :: forall e
@@ -64,3 +107,17 @@ drawBackground = do
             Canvas.drawImage ctx i2 0.0 0.0
             Canvas.drawImage ctx i3 0.0 0.0
             pure unit
+
+foreign import attachKeyListeners :: forall e. Eff (ref :: REF | e) Unit
+foreign import isKeyPressed :: forall e. String -> Eff (ref :: REF | e) Boolean
+foreign import requestAnimationFrame
+  :: forall e . (Number -> Eff e Unit) -> Eff e Unit
+
+getKeys
+  :: forall e
+  . Eff (ref :: REF | e) {left :: Boolean, up :: Boolean, right :: Boolean }
+getKeys = do
+  left <- isKeyPressed "37"
+  up <- isKeyPressed "38"
+  right <- isKeyPressed "39"
+  pure {left, up, right}
