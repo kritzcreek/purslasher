@@ -18,31 +18,36 @@ main = do
     Just cvas -> do
       ctx <- Canvas.getContext2D cvas
       Canvas.withImage "assets/Ichigo_Idle.png" \i ->
-        drawPlayer ctx i
+        drawPlayer ctx i startP1
       Canvas.withImage "assets/villain.png" \i ->
-        drawVillain ctx i
+        drawPlayer ctx i startP2
       log "Hello sailor!"
+
+startP1 :: PlayerPosition
+startP1 = PlayerPosition 100.0 470.0 FacingRight
+
+startP2 :: PlayerPosition
+startP2 = PlayerPosition 1170.0 470.0 FacingLeft
+
+data Direction = FacingLeft | FacingRight
+data PlayerPosition = PlayerPosition Number Number Direction
 
 drawPlayer
   :: forall e
   . Canvas.Context2D
   -> CanvasImageSource
+  -> PlayerPosition
   -> Eff ( canvas :: Canvas.CANVAS | e) Unit
-drawPlayer ctx img = do
-  Canvas.drawImage ctx img 100.0 470.0
-  pure unit
-
-drawVillain
-  :: forall e
-  . Canvas.Context2D
-  -> CanvasImageSource
-  -> Eff ( canvas :: Canvas.CANVAS | e) Unit
-drawVillain ctx img = do
+drawPlayer ctx img (PlayerPosition x y direction) = do
   Canvas.withContext ctx do
-    Canvas.translate {translateX: 1170.0, translateY: 470.0} ctx
-    Canvas.scale {scaleX: -1.0, scaleY: 1.0} ctx
+    Canvas.translate {translateX: x, translateY: y} ctx
+    Canvas.scale {scaleX: directionToScale direction, scaleY: 1.0} ctx
     Canvas.drawImage ctx img 0.0 0.0
   pure unit
+  where
+    directionToScale = case _ of
+      FacingRight -> 1.0
+      FacingLeft -> -1.0
 
 drawBackground :: forall e. Eff ( canvas :: Canvas.CANVAS
                                 , console :: CONSOLE | e) Unit
