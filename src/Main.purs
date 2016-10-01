@@ -4,9 +4,9 @@ import Prelude
 import Graphics.Canvas as Canvas
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (error, CONSOLE)
-import Control.Monad.Eff.Ref (modifyRef, readRef, REF, newRef)
+import Control.Monad.Eff.Ref (REF, Ref, modifyRef, readRef, newRef)
 import Data.Maybe (Maybe(..))
-import Graphics.Canvas (CanvasImageSource)
+import Player (Direction(..), moveRight, moveLeft, startP2, startP1, PlayerPosition(PlayerPosition))
 
 type GameState =
   { player1 :: PlayerPosition
@@ -43,14 +43,20 @@ gameLoop ctx = do
                           }
       requestAnimationFrame (step ctx gameState)
 
+step
+  :: forall e
+   . Canvas.Context2D
+   -> Ref GameState
+   -> Number
+   -> Eff (canvas :: Canvas.CANVAS, ref :: REF | e) Unit
 step ctx ref delta = do
   cleanCanvas ctx
   gs <- readRef ref
   {left, up, right} <- getKeys
   when left
-    (modifyRef ref (\gs -> gs {player1 = moveLeft gs.player1}))
+    (modifyRef ref (\gsP -> gsP {player1 = moveLeft gs.player1}))
   when right
-    (modifyRef ref (\gs -> gs {player1 = moveRight gs.player1}))
+    (modifyRef ref (\gsP -> gsP {player1 = moveRight gs.player1}))
   drawPlayer ctx gs.sprite1 gs.player1
   drawPlayer ctx gs.sprite2 gs.player2
   requestAnimationFrame (step ctx ref)
@@ -60,25 +66,10 @@ cleanCanvas
 cleanCanvas ctx =
   Canvas.clearRect ctx {x: 0.0, y: 0.0, w: 1280.0, h: 720.0} $> unit
 
-startP1 :: PlayerPosition
-startP1 = PlayerPosition 100.0 470.0 FacingRight
-
-startP2 :: PlayerPosition
-startP2 = PlayerPosition 1170.0 470.0 FacingLeft
-
-data Direction = FacingLeft | FacingRight
-data PlayerPosition = PlayerPosition Number Number Direction
-
-moveLeft :: PlayerPosition -> PlayerPosition
-moveLeft (PlayerPosition x y d) = PlayerPosition (x - 2.0) y FacingLeft
-
-moveRight :: PlayerPosition -> PlayerPosition
-moveRight (PlayerPosition x y d) = PlayerPosition (x + 2.0) y FacingRight
-
 drawPlayer
   :: forall e
   . Canvas.Context2D
-  -> CanvasImageSource
+  -> Canvas.CanvasImageSource
   -> PlayerPosition
   -> Eff ( canvas :: Canvas.CANVAS | e) Unit
 drawPlayer ctx img (PlayerPosition x y direction) = do
