@@ -9,7 +9,8 @@
   "dependencies": {
     "purescript-console": "^1.0.0",
     "purescript-canvas": "^1.0.0",
-    "purescript-refs": "^1.0.0"
+    "purescript-refs": "^1.0.0",
+    "purescript-math": "^2.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^1.0.0"

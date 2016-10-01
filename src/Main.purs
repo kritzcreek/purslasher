@@ -6,6 +6,7 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (error, CONSOLE)
 import Control.Monad.Eff.Ref (REF, Ref, modifyRef, readRef, newRef)
 import Data.Maybe (Maybe(..))
+import Math (round, (%))
 import Player (Direction(..), moveRight, moveLeft, startP2, startP1, PlayerPosition(PlayerPosition))
 
 type GameState =
@@ -13,7 +14,16 @@ type GameState =
   , player2 :: PlayerPosition
   , sprite1 :: Canvas.CanvasImageSource
   , sprite2 :: Canvas.CanvasImageSource
+  , running_animation :: Canvas.CanvasImageSource
+  , animationTimer :: Number
   }
+
+animationSpeed :: Number
+animationSpeed = 22.0
+
+stepAnimationTimer :: GameState -> GameState
+stepAnimationTimer gs =
+  gs { animationTimer = gs.animationTimer + animationSpeed }
 
 main :: forall e. Eff ( console :: CONSOLE
                       , canvas :: Canvas.CANVAS
@@ -36,12 +46,15 @@ gameLoop
 gameLoop ctx = do
   Canvas.withImage "assets/Ichigo_Idle.png" \i1 -> do
     Canvas.withImage "assets/villain.png" \i2 -> do
-      gameState <- newRef { player1: startP1
-                          , player2: startP2
-                          , sprite1: i1
-                          , sprite2: i2
-                          }
-      requestAnimationFrame (step ctx gameState)
+      Canvas.withImage "assets/running_animation.png" \i3 -> do
+        gameState <- newRef { player1: startP1
+                            , player2: startP2
+                            , sprite1: i1
+                            , sprite2: i2
+                            , running_animation: i3
+                            , animationTimer: 0.0
+                            }
+        requestAnimationFrame (step ctx gameState)
 
 step
   :: forall e
@@ -52,13 +65,14 @@ step
 step ctx ref delta = do
   cleanCanvas ctx
   gs <- readRef ref
+  modifyRef ref stepAnimationTimer
   {left, up, right} <- getKeys
   when left
     (modifyRef ref (\gsP -> gsP {player1 = moveLeft gs.player1}))
   when right
     (modifyRef ref (\gsP -> gsP {player1 = moveRight gs.player1}))
-  drawPlayer ctx gs.sprite1 gs.player1
-  drawPlayer ctx gs.sprite2 gs.player2
+  drawPlayer ctx gs.running_animation ((round $ gs.animationTimer / 100.0) % 8.0) gs.player1
+  drawPlayer ctx gs.sprite2 0.0 gs.player2
   requestAnimationFrame (step ctx ref)
 
 cleanCanvas
@@ -70,13 +84,17 @@ drawPlayer
   :: forall e
   . Canvas.Context2D
   -> Canvas.CanvasImageSource
+  -> Number
   -> PlayerPosition
   -> Eff ( canvas :: Canvas.CANVAS | e) Unit
-drawPlayer ctx img (PlayerPosition x y direction) = do
+drawPlayer ctx img n (PlayerPosition x y direction) = do
   Canvas.withContext ctx do
     Canvas.translate {translateX: x, translateY: y} ctx
+    case direction of
+      FacingLeft -> Canvas.translate {translateX: 75.0, translateY: 0.0} ctx
+      FacingRight -> Canvas.translate {translateX: -75.0, translateY: 0.0} ctx
     Canvas.scale {scaleX: directionToScale direction, scaleY: 1.0} ctx
-    Canvas.drawImage ctx img 0.0 0.0
+    Canvas.drawImageFull ctx img (n * 150.0) 0.0 150.0 150.0 0.0 0.0 150.0 150.0
   pure unit
   where
     directionToScale = case _ of
