@@ -1,0 +1,8 @@
+{
+  "name": "purslasher",
+  "scripts": {
+      "serve": "browser-sync start -s -f index.js",
+      "watch": "pulp -w build --to index.js",
+      "devel": "npm run -s serve & npm run watch"
+  }
+}
